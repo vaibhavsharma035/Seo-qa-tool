@@ -1,0 +1,9 @@
+flask
+flask-cors
+pandas
+requests
+beautifulsoup4
+openpyxl
+urllib3
+gunicorn
+lxml
