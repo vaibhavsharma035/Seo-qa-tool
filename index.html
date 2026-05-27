@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SEO QA Validator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #080a0f;
+      --surface:  #0f1117;
+      --card:     #13161f;
+      --border:   #1e2330;
+      --accent:   #00e5ff;
+      --accent2:  #7b61ff;
+      --success:  #00e676;
+      --error:    #ff4444;
+      --warning:  #ffab00;
+      --text:     #e8eaf0;
+      --muted:    #5a6070;
+      --mono:     'Space Mono', monospace;
+      --sans:     'DM Sans', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Background grid ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Header ── */
+    header {
+      position: relative;
+      z-index: 10;
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(8,10,15,0.9);
+      backdrop-filter: blur(12px);
+    }
+
+    .logo-icon {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo-text {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .logo-sub {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .header-badge {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 4px 10px;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      border-radius: 20px;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Main layout ── */
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px 60px;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 48px;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .hero h1 {
+      font-family: var(--mono);
+      font-size: clamp(24px, 4vw, 40px);
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+      line-height: 1.2;
+    }
+
+    .hero p {
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 500px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* ── Steps ── */
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .step-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      animation: fadeUp 0.5s ease both;
+      transition: border-color 0.2s;
+    }
+
+    .step-card:hover { border-color: #2a2f3f; }
+
+    .step-card.hidden { display: none; }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .step-num {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: #000;
+      flex-shrink: 0;
+    }
+
+    .step-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* ── File upload ── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(0,229,255,0.03);
+    }
+
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .upload-icon { font-size: 32px; margin-bottom: 12px; }
+
+    .upload-label {
+      font-size: 15px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .upload-hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .file-selected {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: rgba(0,229,255,0.05);
+      border: 1px solid rgba(0,229,255,0.2);
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+
+    .file-selected.show { display: flex; }
+
+    .file-name {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Form fields ── */
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    select, input[type="number"] {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235a6070'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    select:focus, input[type="number"]:focus { border-color: var(--accent); }
+
+    input[type="number"] { width: 100px; }
+
+    .row { display: flex; gap: 16px; align-items: flex-end; }
+    .row .field-group { flex: 1; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 12px 28px;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #000;
+      font-weight: 700;
+      width: 100%;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .btn-primary:not(:disabled):hover { opacity: 0.9; transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      width: 100%;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .btn-secondary:not(:disabled):hover { background: rgba(0,229,255,0.06); }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .btn-ghost:hover { border-color: var(--muted); color: var(--text); }
+
+    .btn-success {
+      background: var(--success);
+      color: #000;
+      width: 100%;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    /* ── Status messages ── */
+    .status {
+      font-family: var(--mono);
+      font-size: 11px;
+      min-height: 16px;
+      margin-top: 8px;
+      border-radius: 6px;
+      padding: 0 2px;
+    }
+
+    .status.loading { color: var(--accent); }
+    .status.success { color: var(--success); }
+    .status.error   { color: var(--error); }
+
+    /* ── Progress bar ── */
+    .progress-wrap {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .progress-wrap.show { display: flex; }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    .progress-text {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      text-align: center;
+    }
+
+    /* ── Results ── */
+    .summary-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .stat-num {
+      font-family: var(--mono);
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1;
+      display: block;
+    }
+
+    .stat-lbl {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-top: 6px;
+      display: block;
+    }
+
+    .stat-total .stat-num { color: var(--text); }
+    .stat-pass  .stat-num { color: var(--success); }
+    .stat-fail  .stat-num { color: var(--error); }
+
+    .issues-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    .issues-table th {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .issues-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    .issues-table tr:last-child td { border-bottom: none; }
+    .issues-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .url-cell {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .badges { display: flex; gap: 4px; flex-wrap: wrap; }
+
+    .badge {
+      font-family: var(--mono);
+      font-size: 9px;
+      padding: 3px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .badge-pass { background: rgba(0,230,118,0.12); color: var(--success); border: 1px solid rgba(0,230,118,0.25); }
+    .badge-fail { background: rgba(255,68,68,0.12);  color: var(--error);   border: 1px solid rgba(255,68,68,0.25); }
+    .badge-warn { background: rgba(255,171,0,0.12);  color: var(--warning); border: 1px solid rgba(255,171,0,0.25); }
+
+    .issues-scroll {
+      max-height: 400px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .no-issues {
+      text-align: center;
+      padding: 32px;
+      color: var(--success);
+      font-size: 16px;
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .step-card:nth-child(1) { animation-delay: 0.1s; }
+    .step-card:nth-child(2) { animation-delay: 0.2s; }
+    .step-card:nth-child(3) { animation-delay: 0.3s; }
+    .step-card:nth-child(4) { animation-delay: 0.4s; }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      header { padding: 16px 20px; }
+      .container { padding: 24px 16px 40px; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .summary-stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">⚡</div>
+  <div>
+    <div class="logo-text">SEO QA Validator</div>
+    <div class="logo-sub">Dynamic Excel-based audit</div>
+  </div>
+  <div class="header-badge">v2.2</div>
+</header>
+
+<div class="container">
+
+  <div class="hero">
+    <h1>Audit Your SEO in Minutes</h1>
+    <p>Upload your Excel file, map your columns, and validate H1, Title Tags, and Meta Descriptions against live URLs.</p>
+  </div>
+
+  <div class="steps">
+
+    <!-- STEP 1: Upload -->
+    <div class="step-card" id="step1">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div class="step-title">Upload Excel File</div>
+      </div>
+
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept=".xlsx,.xls" />
+        <div class="upload-icon">📊</div>
+        <div class="upload-label">Drop your Excel file here</div>
+        <div class="upload-hint">or click to browse — .xlsx / .xls supported</div>
+      </div>
+
+      <div class="file-selected" id="fileSelected">
+        <span>📄</span>
+        <span class="file-name" id="fileName">—</span>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:10px;" onclick="clearFile()">✕</button>
+      </div>
+
+      <button class="btn btn-primary" id="uploadBtn" disabled>Upload File →</button>
+      <div class="status" id="uploadStatus"></div>
+    </div>
+
+    <!-- STEP 2: Sheet + Header -->
+    <div class="step-card hidden" id="step2">
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <div class="step-title">Select Sheet &amp; Header Row</div>
+      </div>
+
+      <div class="row">
+        <div class="field-group">
+          <label class="field-label">Sheet Name</label>
+          <select id="sheetSelect"><option value="">-- Select Sheet --</option></select>
+        </div>
+        <div class="field-group" style="flex:0 0 auto">
+          <label class="field-label">Header Row</label>
+          <input type="number" id="headerRow" value="1" min="1" max="100" />
+        </div>
+      </div>
+
+      <button class="btn btn-secondary" id="loadColumnsBtn">Load Columns →</button>
+      <div class="status" id="sheetStatus"></div>
+    </div>
+
+    <!-- STEP 3: Column Mapping -->
+    <div class="step-card hidden" id="step3">
+      <div class="step-header">
+        <div class="step-num">3</div>
+        <div class="step-title">Map Columns</div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field-group">
+          <label class="field-label">URL Column</label>
+          <select id="urlCol"><option value="">-- Select --</option></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">H1 Column</label>
+          <select id="h1Col"><option value="">-- Select --</option></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Title Column</label>
+          <select id="titleCol"><option value="">-- Select --</option></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Meta Description Column</label>
+          <select id="metaCol"><option value="">-- Select --</option></select>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="runBtn">⚡ Run SEO Audit</button>
+
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText">0%</div>
+      </div>
+
+      <div class="status" id="auditStatus"></div>
+    </div>
+
+    <!-- STEP 4: Results -->
+    <div class="step-card hidden" id="step4">
+      <div class="step-header">
+        <div class="step-num">4</div>
+        <div class="step-title">Results</div>
+      </div>
+
+      <div id="resultsContent"></div>
+
+      <button class="btn btn-success hidden" id="downloadBtn">⬇ Download Excel Report</button>
+      <button class="btn btn-ghost" style="margin-top:10px;width:100%;justify-content:center;" id="resetBtn">↺ Start Over</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = "";   // empty = same origin (Flask serves this page)
+
+let uploadedFilePath = null;
+let auditResults     = [];
+let downloadUrl      = null;
+
+// ── Helpers ──────────────────────────────────────────────────
+function show(id) { document.getElementById(id).classList.remove("hidden"); }
+function hide(id) { document.getElementById(id).classList.add("hidden"); }
+function setStatus(id, msg, type) {
+  var el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = "status " + (type||"");
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function truncate(s,n){ return s.length>n ? s.slice(0,n)+"…" : s; }
+
+function populateSelect(id, cols) {
+  var sel = document.getElementById(id);
+  sel.innerHTML = '<option value="">-- Select --</option>';
+  cols.forEach(function(c){ var o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
+}
+
+function autoSelect(id, cols, keywords) {
+  var lower = cols.map(function(c){ return c.toLowerCase().trim(); });
+  var sel = document.getElementById(id);
+  for(var i=0;i<keywords.length;i++){
+    var idx=lower.indexOf(keywords[i]);
+    if(idx!==-1){ sel.value=cols[idx]; return; }
+  }
+}
+
+// ── File Upload ───────────────────────────────────────────────
+var fileInput = document.getElementById("fileInput");
+var uploadZone = document.getElementById("uploadZone");
+
+uploadZone.addEventListener("dragover", function(e){ e.preventDefault(); uploadZone.classList.add("dragover"); });
+uploadZone.addEventListener("dragleave", function(){ uploadZone.classList.remove("dragover"); });
+uploadZone.addEventListener("drop", function(e){
+  e.preventDefault(); uploadZone.classList.remove("dragover");
+  if(e.dataTransfer.files[0]){ fileInput.files = e.dataTransfer.files; onFileChange(); }
+});
+
+fileInput.addEventListener("change", onFileChange);
+
+function onFileChange() {
+  if(fileInput.files.length>0){
+    document.getElementById("fileName").textContent = fileInput.files[0].name;
+    document.getElementById("fileSelected").classList.add("show");
+    document.getElementById("uploadBtn").disabled = false;
+  }
+}
+
+function clearFile() {
+  fileInput.value="";
+  document.getElementById("fileName").textContent="—";
+  document.getElementById("fileSelected").classList.remove("show");
+  document.getElementById("uploadBtn").disabled=true;
+}
+
+document.getElementById("uploadBtn").addEventListener("click", function(){
+  var file=fileInput.files[0]; if(!file) return;
+  setStatus("uploadStatus","Uploading…","loading");
+  this.disabled=true;
+  var fd=new FormData(); fd.append("file",file);
+  fetch(API+"/upload",{method:"POST",body:fd})
+    .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status); return r.json();})
+    .then(function(d){
+      if(d.error) throw new Error(d.error);
+      uploadedFilePath=d.filepath;
+      var sel=document.getElementById("sheetSelect");
+      sel.innerHTML='<option value="">-- Select Sheet --</option>';
+      d.sheets.forEach(function(s){var o=document.createElement("option");o.value=s;o.textContent=s;sel.appendChild(o);});
+      if(d.sheets.length>0) sel.value=d.sheets[0];
+      setStatus("uploadStatus","✓ "+d.sheets.length+" sheet(s) found.","success");
+      show("step2"); hide("step3"); hide("step4");
+    })
+    .catch(function(e){ setStatus("uploadStatus","✗ "+e.message,"error"); document.getElementById("uploadBtn").disabled=false; });
+});
+
+// ── Load Columns ──────────────────────────────────────────────
+function loadColumns(){
+  var sheet=document.getElementById("sheetSelect").value;
+  var hRow=parseInt(document.getElementById("headerRow").value,10);
+  if(!uploadedFilePath||!sheet||isNaN(hRow)||hRow<1) return;
+  setStatus("sheetStatus","Loading columns…","loading");
+  document.getElementById("loadColumnsBtn").disabled=true;
+  fetch(API+"/get-columns",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({filepath:uploadedFilePath,sheet_name:sheet,header_row:hRow})})
+    .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status); return r.json();})
+    .then(function(d){
+      if(d.error) throw new Error(d.error);
+      ["urlCol","h1Col","titleCol","metaCol"].forEach(function(id){ populateSelect(id,d.columns); });
+      autoSelect("urlCol",  d.columns,["url","page url","address","link","staging site link","42works - staging site link"]);
+      autoSelect("h1Col",   d.columns,["h1","new h1","heading","h1 tag"]);
+      autoSelect("titleCol",d.columns,["title","live title tag","page title","title tag","seo title"]);
+      autoSelect("metaCol", d.columns,["meta","live meta description","meta description","description"]);
+      setStatus("sheetStatus","✓ "+d.columns.length+" column(s) loaded.","success");
+      show("step3"); hide("step4");
+    })
+    .catch(function(e){ setStatus("sheetStatus","✗ "+e.message,"error"); })
+    .finally(function(){ document.getElementById("loadColumnsBtn").disabled=false; });
+}
+
+document.getElementById("loadColumnsBtn").addEventListener("click",loadColumns);
+document.getElementById("sheetSelect").addEventListener("change",function(){
+  if(this.value&&uploadedFilePath){ hide("step3"); hide("step4"); loadColumns(); }
+});
+var hDeb=null;
+document.getElementById("headerRow").addEventListener("input",function(){
+  clearTimeout(hDeb);
+  hDeb=setTimeout(function(){ if(document.getElementById("sheetSelect").value&&uploadedFilePath) loadColumns(); },600);
+});
+
+// ── Run Audit (batched) ───────────────────────────────────────
+document.getElementById("runBtn").addEventListener("click",function(){
+  var urlColVal = document.getElementById("urlCol").value;
+  if(!urlColVal){ setStatus("auditStatus","Please map the URL column.","error"); return; }
+  auditResults=[]; downloadUrl=null;
+  this.disabled=true;
+  document.getElementById("progressWrap").classList.add("show");
+  setProgress(0,"Starting…");
+  runBatch(0);
+});
+
+function setProgress(pct, label){
+  document.getElementById("progressFill").style.width = pct+"%";
+  document.getElementById("progressText").textContent = label;
+}
+
+function runBatch(offset){
+  fetch(API+"/run-batch",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      filepath:   uploadedFilePath,
+      sheet_name: document.getElementById("sheetSelect").value,
+      header_row: parseInt(document.getElementById("headerRow").value,10),
+      url_col:    document.getElementById("urlCol").value||null,
+      h1_col:     document.getElementById("h1Col").value||null,
+      title_col:  document.getElementById("titleCol").value||null,
+      meta_col:   document.getElementById("metaCol").value||null,
+      offset:     offset,
+      batch_size: 10
+    })
+  })
+  .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status); return r.json();})
+  .then(function(d){
+    if(d.error) throw new Error(d.error);
+    d.results.forEach(function(r){ auditResults.push(r); });
+    var pct=Math.min(Math.round((d.next_offset/d.total)*100),100);
+    setProgress(pct, pct+"% — "+Math.min(d.next_offset,d.total)+"/"+d.total+" URLs checked");
+    if(d.is_done){ finishAudit(d.total); }
+    else { setTimeout(function(){ runBatch(d.next_offset); },400); }
+  })
+  .catch(function(e){
+    setStatus("auditStatus","✗ "+e.message,"error");
+    document.getElementById("progressWrap").classList.remove("show");
+    document.getElementById("runBtn").disabled=false;
+  });
+}
+
+function finishAudit(total){
+  var issues=[], passed=0, failed=0;
+  auditResults.forEach(function(r){ if(r.failed){failed++;issues.push(r);}else{passed++;} });
+  document.getElementById("progressWrap").classList.remove("show");
+  setStatus("auditStatus","","");
+  renderResults({total:total,passed:passed,failed:failed,issues:issues});
+  show("step4");
+  document.getElementById("runBtn").disabled=false;
+  // Generate report
+  generateReport();
+}
+
+function generateReport(){
+  fetch(API+"/generate-report",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      filepath:   uploadedFilePath,
+      sheet_name: document.getElementById("sheetSelect").value,
+      header_row: parseInt(document.getElementById("headerRow").value,10),
+      url_col:    document.getElementById("urlCol").value||null,
+      h1_col:     document.getElementById("h1Col").value||null,
+      title_col:  document.getElementById("titleCol").value||null,
+      meta_col:   document.getElementById("metaCol").value||null,
+      results:    auditResults
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(d.download_url){
+      downloadUrl = d.download_url;
+      var btn = document.getElementById("downloadBtn");
+      btn.classList.remove("hidden");
+      btn.onclick = function(){ window.open(API+downloadUrl,"_blank"); };
+    }
+  })
+  .catch(function(){});  // report is bonus — don't block UI
+}
+
+function renderResults(data){
+  var issues=data.issues||[];
+  var html='<div class="summary-stats">'
+    +'<div class="stat stat-total"><span class="stat-num">'+data.total+'</span><span class="stat-lbl">Total URLs</span></div>'
+    +'<div class="stat stat-pass"><span class="stat-num">'+data.passed+'</span><span class="stat-lbl">Passed</span></div>'
+    +'<div class="stat stat-fail"><span class="stat-num">'+data.failed+'</span><span class="stat-lbl">Issues</span></div>'
+    +'</div>';
+
+  if(issues.length===0){
+    html+='<div class="no-issues">✅ All URLs passed! No issues found.</div>';
+  } else {
+    html+='<div class="issues-scroll"><table class="issues-table">'
+      +'<thead><tr><th>URL</th><th>Checks</th></tr></thead><tbody>';
+    issues.slice(0,100).forEach(function(issue){
+      html+='<tr><td class="url-cell" title="'+escHtml(issue.url||"")+'">'+escHtml(truncate(issue.url||"—",60))+'</td>'
+        +'<td><div class="badges">';
+      (issue.checks||[]).forEach(function(c){
+        var cls = c.pass ? "badge-pass" : (c.result&&c.result.indexOf("MISSING")>-1 ? "badge-warn" : "badge-fail");
+        html+='<span class="badge '+cls+'" title="'+escHtml(c.result)+'">'+escHtml(c.label)+': '+escHtml(c.result)+'</span>';
+      });
+      html+='</div></td></tr>';
+    });
+    if(issues.length>100) html+='<tr><td colspan="2" style="text-align:center;color:var(--muted);padding:12px;font-size:12px;">… and '+(issues.length-100)+' more rows in the downloaded report</td></tr>';
+    html+='</tbody></table></div>';
+  }
+  document.getElementById("resultsContent").innerHTML=html;
+}
+
+// ── Reset ──────────────────────────────────────────────────────
+document.getElementById("resetBtn").addEventListener("click",function(){
+  uploadedFilePath=null; auditResults=[]; downloadUrl=null;
+  clearFile();
+  setStatus("uploadStatus","",""); setStatus("sheetStatus","",""); setStatus("auditStatus","","");
+  document.getElementById("sheetSelect").innerHTML='<option value="">-- Select Sheet --</option>';
+  document.getElementById("headerRow").value="1";
+  ["urlCol","h1Col","titleCol","metaCol"].forEach(function(id){
+    document.getElementById(id).innerHTML='<option value="">-- Select --</option>';
+  });
+  document.getElementById("resultsContent").innerHTML="";
+  document.getElementById("downloadBtn").classList.add("hidden");
+  document.getElementById("progressWrap").classList.remove("show");
+  document.getElementById("uploadBtn").disabled=true;
+  hide("step2"); hide("step3"); hide("step4");
+});
+</script>
+</body>
+</html>
