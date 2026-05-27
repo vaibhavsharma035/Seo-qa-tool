@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, render_template
 from flask_cors import CORS
 import pandas as pd
 import requests
@@ -335,6 +335,251 @@ def run_test():
         return jsonify({"error": traceback.format_exc()}), 500
 
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ROUTE 3B — /run-batch  (memory-safe: processes 10 URLs at a time)
+#  Frontend calls this repeatedly with offset until done
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/run-batch", methods=["POST"])
+def run_batch():
+    try:
+        body       = request.get_json()
+        filepath   = body.get("filepath", "")
+        sheet_name = body.get("sheet_name", "")
+        header_row = int(body.get("header_row", 1))
+        url_col    = body.get("url_col")
+        h1_col     = body.get("h1_col")
+        title_col  = body.get("title_col")
+        meta_col   = body.get("meta_col")
+        offset     = int(body.get("offset", 0))
+        batch_size = int(body.get("batch_size", 10))
+
+        if not os.path.exists(filepath):
+            return jsonify({"error": "File not found. Please re-upload."}), 400
+
+        df = pd.read_excel(filepath, sheet_name=sheet_name, header=header_row - 1)
+        df.columns = df.columns.astype(str).str.strip()
+
+        col_map = {}
+        if url_col   and url_col   in df.columns: col_map["URL"]   = url_col
+        if h1_col    and h1_col    in df.columns: col_map["H1"]    = h1_col
+        if title_col and title_col in df.columns: col_map["Title"] = title_col
+        if meta_col  and meta_col  in df.columns: col_map["Meta"]  = meta_col
+
+        if "URL" not in col_map:
+            return jsonify({"error": f"URL column not found."}), 400
+
+        work = df[list(col_map.values())].copy()
+        work.columns = list(col_map.keys())
+        work = work[work["URL"].notna()].reset_index(drop=True)
+        work["URL"] = work["URL"].astype(str).str.strip()
+        work = work[work["URL"].str.lower() != "nan"].reset_index(drop=True)
+
+        # Cap at 50 URLs for free tier stability
+        if len(work) > 50:
+            print(f"[RUN] Capping to 50 URLs (found {len(work)})")
+            work = work.head(50).reset_index(drop=True)
+
+        total_urls = len(work)
+        batch = work.iloc[offset:offset + batch_size]
+
+        HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
+        results = []
+
+        for _, row in batch.iterrows():
+            url            = row["URL"]
+            expected_h1    = clean_text(row["H1"])    if "H1"    in col_map else ""
+            expected_title = clean_text(row["Title"]) if "Title" in col_map else ""
+            expected_meta  = clean_text(row["Meta"])  if "Meta"  in col_map else ""
+
+            print("Checking:", url)
+
+            try:
+                response    = requests.get(url, timeout=10, verify=False, headers=HEADERS)
+                status_code = response.status_code
+                html_text   = response.text
+                response.close()
+                del response
+
+                soup         = BeautifulSoup(html_text, "html.parser")
+                del html_text
+
+                h1_tags      = soup.find_all("h1")
+                h1_count     = len(h1_tags)
+                actual_h1    = clean_text(h1_tags[0].get_text()) if h1_count > 0 else ""
+                actual_title = clean_text(soup.title.get_text()) if soup.title else ""
+
+                meta_tag = soup.find("meta", attrs={"name": "description"})
+                if not meta_tag:
+                    meta_tag = soup.find("meta", attrs={"property": "og:description"})
+                actual_meta = clean_text(meta_tag.get("content")) if meta_tag and meta_tag.get("content") else ""
+
+                soup.decompose()
+                del soup
+
+            except Exception as e:
+                print("Error loading:", url, str(e))
+                status_code  = "ERROR"
+                actual_h1 = actual_title = actual_meta = ""
+                h1_count  = 0
+
+            # Evaluate results
+            if "H1" not in col_map:       h1_result = "NOT MAPPED"
+            elif expected_h1 == "":       h1_result = "NO EXPECTED H1"
+            elif actual_h1 == "":         h1_result = "H1 MISSING"
+            elif h1_count > 1:            h1_result = "MULTIPLE H1"
+            elif expected_h1.lower() == actual_h1.lower(): h1_result = "PASS"
+            else:                         h1_result = "FAIL"
+
+            if "Title" not in col_map:        title_result = "NOT MAPPED"
+            elif expected_title == "":        title_result = "NO EXPECTED TITLE"
+            elif actual_title == "":          title_result = "TITLE MISSING"
+            elif expected_title.lower() == actual_title.lower(): title_result = "PASS"
+            else:                             title_result = "FAIL"
+
+            if "Meta" not in col_map:       meta_result = "NOT MAPPED"
+            elif expected_meta == "":       meta_result = "NO EXPECTED META"
+            elif actual_meta == "":         meta_result = "META MISSING"
+            elif expected_meta.lower() == actual_meta.lower(): meta_result = "PASS"
+            else:                           meta_result = "FAIL"
+
+            row_checks = []
+            row_failed = False
+            if "H1"    in col_map:
+                row_checks.append({"label":"H1",    "pass": h1_result=="PASS",    "result": h1_result,    "actual": actual_h1[:100],    "expected": expected_h1[:100]})
+                if h1_result    != "PASS": row_failed = True
+            if "Title" in col_map:
+                row_checks.append({"label":"Title", "pass": title_result=="PASS", "result": title_result, "actual": actual_title[:100], "expected": expected_title[:100]})
+                if title_result != "PASS": row_failed = True
+            if "Meta"  in col_map:
+                row_checks.append({"label":"Meta",  "pass": meta_result=="PASS",  "result": meta_result,  "actual": actual_meta[:100],  "expected": expected_meta[:100]})
+                if meta_result  != "PASS": row_failed = True
+            if str(status_code) not in ("200",""):
+                row_checks.append({"label":"HTTP","pass":False,"result":str(status_code),"actual":str(status_code),"expected":"200"})
+                row_failed = True
+
+            results.append({
+                "url":       url,
+                "checks":    row_checks,
+                "failed":    row_failed,
+                "h1_result": h1_result,
+                "title_result": title_result,
+                "meta_result":  meta_result,
+                "actual_h1":    actual_h1,
+                "actual_title": actual_title,
+                "actual_meta":  actual_meta,
+                "status_code":  str(status_code),
+            })
+
+            gc.collect()
+            time.sleep(0.3)
+
+        next_offset = offset + batch_size
+        is_done     = next_offset >= total_urls
+
+        return jsonify({
+            "results":     results,
+            "offset":      offset,
+            "next_offset": next_offset,
+            "total":       total_urls,
+            "is_done":     is_done,
+            "capped":      total_urls == 50,
+        })
+
+    except Exception:
+        traceback.print_exc()
+        return jsonify({"error": traceback.format_exc()}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ROUTE — /generate-report  (builds Excel from batch results)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/generate-report", methods=["POST"])
+def generate_report():
+    try:
+        body       = request.get_json()
+        filepath   = body.get("filepath","")
+        sheet_name = body.get("sheet_name","")
+        header_row = int(body.get("header_row",1))
+        url_col    = body.get("url_col")
+        h1_col     = body.get("h1_col")
+        title_col  = body.get("title_col")
+        meta_col   = body.get("meta_col")
+        results    = body.get("results",[])
+
+        if not os.path.exists(filepath):
+            return jsonify({"error":"File not found"}), 400
+
+        df = pd.read_excel(filepath, sheet_name=sheet_name, header=header_row-1)
+        df.columns = df.columns.astype(str).str.strip()
+
+        col_map = {}
+        if url_col   and url_col   in df.columns: col_map["URL"]   = url_col
+        if h1_col    and h1_col    in df.columns: col_map["H1"]    = h1_col
+        if title_col and title_col in df.columns: col_map["Title"] = title_col
+        if meta_col  and meta_col  in df.columns: col_map["Meta"]  = meta_col
+
+        work = df[list(col_map.values())].copy()
+        work.columns = list(col_map.keys())
+        work = work[work["URL"].notna()].reset_index(drop=True)
+        work["URL"] = work["URL"].astype(str).str.strip()
+        work = work[work["URL"].str.lower()!="nan"].reset_index(drop=True)
+
+        # Map batch results back to dataframe
+        result_map = {r["url"]: r for r in results}
+        work["Status_Code"]  = ""
+        work["Actual_H1"]    = ""
+        work["H1_Result"]    = ""
+        work["Actual_Title"] = ""
+        work["Title_Result"] = ""
+        work["Actual_Meta"]  = ""
+        work["Meta_Result"]  = ""
+
+        for i, row in work.iterrows():
+            r = result_map.get(row["URL"], {})
+            work.at[i,"Status_Code"]  = r.get("status_code","")
+            work.at[i,"Actual_H1"]    = r.get("actual_h1","")
+            work.at[i,"H1_Result"]    = r.get("h1_result","")
+            work.at[i,"Actual_Title"] = r.get("actual_title","")
+            work.at[i,"Title_Result"] = r.get("title_result","")
+            work.at[i,"Actual_Meta"]  = r.get("actual_meta","")
+            work.at[i,"Meta_Result"]  = r.get("meta_result","")
+
+        timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_name = f"seo_results_{timestamp}.xlsx"
+        report_path = os.path.join(REPORT_DIR, report_name)
+        work.to_excel(report_path, index=False)
+
+        wb = load_workbook(report_path)
+        ws = wb.active
+
+        fail_fill     = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+        missing_fill  = PatternFill(start_color="FF6600", end_color="FF6600", fill_type="solid")
+        multiple_fill = PatternFill(start_color="FFC000", end_color="FFC000", fill_type="solid")
+
+        col_idx_map = {}
+        for cell in ws[1]:
+            if cell.value in ("H1_Result","Title_Result","Meta_Result"):
+                col_idx_map[cell.value] = cell.column
+
+        for r in range(2, ws.max_row+1):
+            for cidx in col_idx_map.values():
+                cell = ws.cell(row=r, column=cidx)
+                val  = str(cell.value).strip().upper() if cell.value else ""
+                if val == "FAIL":                cell.fill = fail_fill
+                elif "MISSING" in val:           cell.fill = missing_fill
+                elif val == "MULTIPLE H1":       cell.fill = multiple_fill
+
+        wb.save(report_path)
+        return jsonify({"download_url": f"/download/{report_name}"})
+
+    except Exception:
+        traceback.print_exc()
+        return jsonify({"error": traceback.format_exc()}), 500
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  ROUTE 4 — /download/<filename>
 # ─────────────────────────────────────────────────────────────────────────────
@@ -353,6 +598,10 @@ def download(filename):
 
 
 @app.route("/")
+def index():
+    return render_template("index.html")
+
+@app.route("/health")
 def health():
     return jsonify({"status": "SEO QA API running", "version": "2.2"})
 
