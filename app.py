@@ -377,11 +377,6 @@ def run_batch():
         work["URL"] = work["URL"].astype(str).str.strip()
         work = work[work["URL"].str.lower() != "nan"].reset_index(drop=True)
 
-        # Cap at 50 URLs for free tier stability
-        if len(work) > 50:
-            print(f"[RUN] Capping to 50 URLs (found {len(work)})")
-            work = work.head(50).reset_index(drop=True)
-
         total_urls = len(work)
         batch = work.iloc[offset:offset + batch_size]
 
@@ -485,7 +480,6 @@ def run_batch():
             "next_offset": next_offset,
             "total":       total_urls,
             "is_done":     is_done,
-            "capped":      total_urls == 50,
         })
 
     except Exception:
@@ -603,7 +597,7 @@ def index():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "SEO QA API running", "version": "2.3"})
+    return jsonify({"status": "SEO QA API running", "version": "2.2"})
 
 
 if __name__ == "__main__":
