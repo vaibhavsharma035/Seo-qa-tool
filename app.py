@@ -603,7 +603,7 @@ def index():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "SEO QA API running", "version": "2.2"})
+    return jsonify({"status": "SEO QA API running", "version": "2.3"})
 
 
 if __name__ == "__main__":
